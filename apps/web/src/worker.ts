@@ -116,6 +116,7 @@ const app = new OpenAPIHono<{ Bindings: Env }>({
 app.use('/api/*', cors({ origin: '*', exposeHeaders: ['X-Disclaimer'] }))
 app.use('/api/*', async (c, next) => {
   await next()
+  c.res.headers.set('X-Content-Type-Options', 'nosniff')
   c.res.headers.set('X-Disclaimer', `Gunakan hanya QRIS milik Anda; lihat ${new URL(LEGAL_PATH, c.req.url).href}`)
 })
 
@@ -155,13 +156,38 @@ async function resolveLogo(logo: string | undefined): Promise<string | undefined
     throw new ApiError('INVALID_LOGO', 'logo harus data URL atau URL https')
   }
   if (url.protocol !== 'https:') throw new ApiError('INVALID_LOGO', 'URL logo harus https')
-  const res = await fetch(url, { signal: AbortSignal.timeout(3000), redirect: 'follow' }).catch(() => {
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(3000),
+    redirect: 'follow',
+    headers: { 'User-Agent': 'qristifier (+https://qristifier.pages.dev)', Accept: 'image/*' },
+  }).catch(() => {
     throw new ApiError('INVALID_LOGO', 'Gagal mengunduh logo')
   })
   const type = (res.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase()
   if (!res.ok || !LOGO_TYPES.includes(type)) throw new ApiError('INVALID_LOGO', 'Logo harus gambar png/jpeg/webp/gif/svg')
-  const buf = new Uint8Array(await res.arrayBuffer())
-  if (buf.length > MAX_LOGO) throw new ApiError('FILE_TOO_LARGE', 'Ukuran logo maksimal 256 KB')
+  const tooLarge = () => new ApiError('FILE_TOO_LARGE', 'Ukuran logo maksimal 256 KB')
+  if (Number(res.headers.get('content-length') ?? 0) > MAX_LOGO) throw tooLarge()
+  // Baca bertahap dan hentikan begitu melewati batas (content-length bisa absen/bohong).
+  const reader = res.body?.getReader()
+  if (!reader) throw new ApiError('INVALID_LOGO', 'Gagal membaca logo')
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.length
+    if (size > MAX_LOGO) {
+      await reader.cancel()
+      throw tooLarge()
+    }
+    chunks.push(value)
+  }
+  const buf = new Uint8Array(size)
+  let off = 0
+  for (const c of chunks) {
+    buf.set(c, off)
+    off += c.length
+  }
   return `data:${type};base64,${toBase64(buf)}`
 }
 
@@ -190,7 +216,9 @@ async function respondRender(qris: string, p: RenderParams, cache: string): Prom
     const png = await svgToPng(r.svg, { width: width ?? r.width, background: '#ffffff' })
     return new Response(png, { headers: { ...headers, 'Content-Type': 'image/png' } })
   }
-  return new Response(r.svg, { headers: { ...headers, 'Content-Type': 'image/svg+xml; charset=utf-8' } })
+  // SVG bisa memuat gambar dari pengguna; CSP mencegah skrip jalan bila dibuka langsung sebagai halaman.
+  const csp = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
+  return new Response(r.svg, { headers: { ...headers, 'Content-Type': 'image/svg+xml; charset=utf-8', 'Content-Security-Policy': csp } })
 }
 
 const imageContent = {
