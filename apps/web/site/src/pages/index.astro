@@ -1,0 +1,587 @@
+---
+import Base from '../layouts/Base.astro'
+import CopyButton from '../components/CopyButton.astro'
+import { listTemplates } from 'qristifier'
+
+const install = 'npm i qristifier'
+const libExample = `import { renderQRIS } from 'qristifier'
+
+// Pilih template, sisanya terisi otomatis dari payload (nama, NMID, ...)
+const svg = renderQRIS(payload, { template: 'gpn' })
+
+// Kustomisasi: nominal, tema, logo, teks
+const poster = renderQRIS(payload, {
+  template: 'poster',
+  amount: 25000,               // statis → dinamis (via qrisnamis)
+  theme: 'biru',
+  qrStyle: 'rounded',
+  logo: 'data:image/png;base64,...',
+  fields: { title: 'BAYAR DI SINI', footer: 'Terima kasih!' },
+})`
+const pngExample = `import { renderQRISPng } from 'qristifier/png' // butuh: npm i @resvg/resvg-wasm
+
+const { png } = await renderQRISPng(payload, { template: 'story', width: 1080 })
+await Bun.write('qris.png', png)`
+const customExample = `import { extendTemplate, renderQRIS } from 'qristifier'
+
+// Turunkan dari preset…
+const mine = extendTemplate('minimal', {
+  id: 'kafe',
+  fields: [{ key: 'footer', label: 'Footer', type: 'text', default: 'Kopi Senja' }],
+})
+// …atau tulis spec JSON sendiri (rect, circle, path, text, image, qr)
+renderQRIS(payload, { template: mine })`
+const curlExample = `curl -X POST https://qristifier.pages.dev/api/render \\
+  -H 'content-type: application/json' \\
+  -d '{"qris":"000201...","template":"gpn","amount":15000,"format":"png"}' \\
+  -o qris.png`
+const templates = listTemplates().map((t) => ({ id: t.id, name: t.name, description: t.description }))
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'qristifier',
+  description: 'Ubah QRIS statis, dinamis, atau payload string menjadi gambar standee, poster, dan stiker dengan template yang bisa dikustom.',
+  url: 'https://qristifier.pages.dev/',
+  image: 'https://qristifier.pages.dev/og.png',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Any',
+  inLanguage: 'id',
+  license: 'https://opensource.org/licenses/MIT',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'IDR' },
+  author: { '@type': 'Person', name: 'Suriyadi', url: 'https://github.com/suriyadi15' },
+  sameAs: ['https://github.com/suriyadi15/qristifier', 'https://www.npmjs.com/package/qristifier'],
+}
+---
+<Base jsonLd={jsonLd}>
+  <main class="mx-auto max-w-6xl px-4">
+    <section class="py-14 text-center">
+      <h1 class="text-4xl font-extrabold tracking-tight text-ink sm:text-5xl">QRIS jadi <span class="text-brand">gambar siap pakai</span></h1>
+      <p class="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
+        Ubah QRIS statis, dinamis, atau payload string menjadi standee, poster, stiker, dan story promosi.
+        Pilih template, sesuaikan teks, warna, dan logo. Library TypeScript, API gratis, dan generator di browser.
+      </p>
+      <div class="mt-6 flex flex-wrap justify-center gap-3">
+        <a href="#generator" class="btn btn-primary">Coba generator</a>
+        <a href="/api/docs" class="btn btn-ghost">API Playground</a>
+        <a href="/docs" class="btn btn-ghost">Dokumentasi</a>
+        <div class="flex items-center gap-1 rounded-lg bg-slate-100 py-1 pl-3 pr-1 text-sm"><code>{install}</code><CopyButton text={install} class="text-slate-500 hover:bg-slate-200" /></div>
+      </div>
+    </section>
+
+    <section id="generator" class="scroll-mt-6">
+      <h2 class="mb-1 text-2xl font-bold text-ink">Generator</h2>
+      <p class="mb-4 text-sm text-slate-600">Semua diproses di browser. QRIS dan logo Anda tidak dikirim ke server mana pun.</p>
+
+      <div id="consent" class="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        <label class="flex cursor-pointer items-start gap-3">
+          <input id="consent-check" type="checkbox" class="mt-1 h-4 w-4" />
+          <span>
+            Saya menyatakan QRIS yang saya gunakan adalah <strong>milik saya sendiri</strong> atau saya berwenang menggunakannya,
+            tidak akan dipakai untuk penipuan/pengalihan pembayaran, dan saya menyetujui{' '}
+            <a class="underline" href="/legal" target="_blank">Syarat Penggunaan &amp; Disclaimer</a>.
+            Pengembang tidak bertanggung jawab atas penggunaan alat ini.
+          </span>
+        </label>
+      </div>
+
+      <div id="gen" class="grid gap-6 opacity-50 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]" aria-disabled="true">
+        <div class="space-y-5">
+          <div>
+            <span class="label">1. QRIS</span>
+            <label id="drop" class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 hover:bg-slate-50">
+              <span>Seret gambar QRIS ke sini, atau klik untuk memilih</span>
+              <input id="file" type="file" accept="image/*" class="hidden" />
+            </label>
+            <textarea id="static" rows="3" class="input mt-2 font-mono text-xs" placeholder="…atau tempel teks payload QRIS (000201…). Kosong = pratinjau contoh."></textarea>
+            <p id="status" class="mt-1 min-h-5 text-xs text-slate-500"></p>
+            <label class="flex items-center gap-2 text-xs text-slate-600"><input id="free" type="checkbox" /> Payload bebas (bukan QRIS): render teks apa pun menjadi QR</label>
+          </div>
+
+          <div>
+            <span class="label">2. Template</span>
+            <div id="gallery" class="grid grid-cols-3 gap-3 sm:grid-cols-6 lg:grid-cols-3 xl:grid-cols-6">
+              {templates.map((t) => (
+                <button type="button" data-tpl={t.id} title={t.description} class="tpl group rounded-lg border-2 border-slate-200 bg-slate-50 p-1.5 text-left transition hover:border-slate-400">
+                  <div class="thumb flex aspect-[3/4] items-center justify-center overflow-hidden rounded bg-white [&>svg]:h-full [&>svg]:w-full"></div>
+                  <span class="mt-1 block truncate text-center text-[11px] font-semibold text-slate-600">{t.name}</span>
+                </button>
+              ))}
+            </div>
+            <p id="tpl-desc" class="mt-2 text-xs text-slate-500"></p>
+          </div>
+
+          <div>
+            <span class="label">3. Nominal (opsional)</span>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs text-slate-500" for="amount">Nominal (Rp)</label><input id="amount" class="input" inputmode="decimal" placeholder="Kosong = QRIS statis" /></div>
+              <div><label class="text-xs text-slate-500" for="ref">Referensi</label><input id="ref" maxlength="25" class="input" placeholder="INV-0001" /></div>
+              <div>
+                <label class="text-xs text-slate-500" for="feeType">Biaya layanan</label>
+                <select id="feeType" class="input">
+                  <option value="">Tidak ada</option>
+                  <option value="fixed">Tetap (Rp)</option>
+                  <option value="percent">Persen (%)</option>
+                  <option value="prompt">Minta pembayar isi</option>
+                </select>
+              </div>
+              <div><label class="text-xs text-slate-500" for="feeValue">Nilai biaya</label><input id="feeValue" class="input" inputmode="decimal" disabled /></div>
+            </div>
+          </div>
+
+          <div>
+            <span class="label">4. Tampilan</span>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs text-slate-500" for="theme">Tema warna</label><select id="theme" class="input"></select></div>
+              <div><label class="text-xs text-slate-500" for="qrStyle">Gaya QR</label><select id="qrStyle" class="input"></select></div>
+            </div>
+            <div id="colors" class="mt-3 grid grid-cols-4 gap-2 text-xs text-slate-500"></div>
+            <div class="mt-3">
+              <label class="text-xs text-slate-500" for="logo">Logo di tengah QR (png/jpg/svg)</label>
+              <div class="flex items-center gap-2">
+                <input id="logo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="input text-xs" />
+                <button id="logo-clear" type="button" class="btn btn-ghost !px-3 !py-1.5 text-xs" style="display:none">Hapus</button>
+              </div>
+            </div>
+            <label class="mt-2 flex items-center gap-2 text-xs text-slate-600"><input id="logo-nobg" type="checkbox" /> Logo tanpa kotak latar (lubang bulat, cocok untuk logo transparan/SVG)</label>
+            <div id="fields" class="mt-3 grid gap-3 sm:grid-cols-2"></div>
+          </div>
+
+          <details id="adv" class="rounded-xl border border-slate-200 p-4">
+            <summary class="cursor-pointer text-sm font-semibold text-ink">Lanjutan: template kustom (JSON)</summary>
+            <p class="mt-2 text-xs text-slate-500">
+              Salin spec template saat ini, ubah posisi/teks/warna, lalu aktifkan. Elemen: <code>rect</code>, <code>circle</code>, <code>path</code>, <code>text</code>, <code>image</code>, <code>qr</code>.
+              Binding: <code>{'{{merchantName}}'}</code>, <code>{'{{nmid}}'}</code>, <code>{'{{amount}}'}</code>, <code>{'{{colors.primary}}'}</code>, <code>{'{{assets.qris}}'}</code>, <code>{'{{logo}}'}</code>.
+            </p>
+            <div class="mt-2 flex flex-wrap items-center gap-3">
+              <button id="spec-copy" type="button" class="btn btn-ghost !py-1.5 text-xs">Salin spec template saat ini</button>
+              <label class="flex items-center gap-2 text-xs"><input id="spec-on" type="checkbox" /> Pakai template kustom</label>
+            </div>
+            <textarea id="spec" rows="10" spellcheck="false" class="input mt-2 font-mono text-xs" placeholder='{"width":600,"height":800,"elements":[…]}'></textarea>
+            <p id="spec-err" class="mt-1 min-h-5 text-xs text-red-600"></p>
+          </details>
+        </div>
+
+        <div class="lg:sticky lg:top-4 lg:self-start">
+          <div class="flex flex-col items-center gap-3 rounded-xl border border-slate-200 p-4">
+            <div id="preview" class="flex w-full items-center justify-center rounded-lg bg-slate-100 p-2 text-sm text-slate-400 [&>svg]:h-auto [&>svg]:max-h-[70vh] [&>svg]:w-full">Pratinjau muncul di sini</div>
+            <p id="error" class="min-h-5 text-center text-sm text-red-600"></p>
+            <div class="flex flex-wrap items-center justify-center gap-2">
+              <button id="dl-png" class="btn btn-primary" disabled>Download PNG</button>
+              <select id="png-scale" class="input !w-auto !py-2 text-xs" aria-label="Resolusi PNG">
+                <option value="1">1×</option><option value="2" selected>2×</option><option value="3">3×</option>
+              </select>
+              <button id="dl-svg" class="btn btn-ghost" disabled>SVG</button>
+            </div>
+            <div class="flex flex-wrap justify-center gap-2">
+              <button id="copy-payload" class="btn btn-ghost !py-1.5 text-xs" disabled>Salin payload</button>
+              <button id="copy-link" class="btn btn-ghost !py-1.5 text-xs" disabled>Salin link pengaturan</button>
+            </div>
+            <div class="w-full">
+              <span class="label">URL API (GET, bisa untuk &lt;img&gt;)</span>
+              <div class="flex gap-1"><input id="api-url" readonly class="input font-mono text-[11px]" /><button id="copy-api" class="btn btn-ghost !px-3" disabled>Salin</button></div>
+              <p id="api-note" class="mt-1 text-[11px] text-slate-500"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="template" class="prose-lite mt-16 scroll-mt-6">
+      <h2>Template &amp; kustomisasi</h2>
+      <p>Tiga lapis, makin dalam makin bebas:</p>
+      <ul>
+        <li><strong>Preset siap pakai.</strong> <code>renderQRIS(payload, {'{ template: \'gpn\' }'})</code> langsung jadi. Nama merchant, NMID, dan nominal terisi otomatis dari payload.</li>
+        <li><strong>Kustomisasi preset.</strong> Tiap template punya <code>fields</code> (judul, footer, dll), plus tema warna, gaya QR (<code>square</code>, <code>dots</code>, <code>rounded</code>), warna per elemen, dan logo di tengah QR.</li>
+        <li><strong>Template sendiri.</strong> Spec JSON deklaratif atau <code>extendTemplate</code>. Semua preset memakai format yang sama, jadi bisa disalin lalu diubah.</li>
+      </ul>
+      <pre class="mt-3 overflow-x-auto rounded-xl bg-ink p-4 text-sm text-slate-100"><code>{customExample}</code></pre>
+    </section>
+
+    <section id="library" class="prose-lite mt-12 scroll-mt-6">
+      <h2>Library</h2>
+      <p>ESM + CJS + tipe TypeScript. SVG dihasilkan murni di JS (jalan di Node, Bun, browser, Workers). PNG lewat subpath opsional <code>qristifier/png</code>.</p>
+      <div class="relative"><pre class="overflow-x-auto rounded-xl bg-ink p-4 pr-12 text-sm text-slate-100"><code>{install}</code></pre><CopyButton text={install} class="absolute right-2 top-2 text-slate-300 hover:bg-slate-700" /></div>
+      <pre class="mt-3 overflow-x-auto rounded-xl bg-ink p-4 text-sm text-slate-100"><code>{libExample}</code></pre>
+      <pre class="mt-3 overflow-x-auto rounded-xl bg-ink p-4 text-sm text-slate-100"><code>{pngExample}</code></pre>
+      <p class="mt-3"><a href="/docs"><strong>Dokumentasi lengkap →</strong></a></p>
+    </section>
+
+    <section id="api" class="prose-lite mt-12 scroll-mt-6">
+      <h2>API</h2>
+      <p>Gratis dan stateless. Coba langsung di <a href="/api/docs">API Playground</a>.</p>
+      <ul>
+        <li><code>GET /api/templates</code> — daftar template, field, dan tema</li>
+        <li><code>GET /api/render</code> — gambar langsung (<code>format=svg|png</code>), cocok untuk <code>&lt;img&gt;</code></li>
+        <li><code>POST /api/render</code> — kustomisasi lengkap, termasuk template JSON sendiri</li>
+        <li><code>POST /api/parse</code> — parse &amp; validasi payload</li>
+      </ul>
+      <pre class="overflow-x-auto rounded-xl bg-ink p-4 text-sm text-slate-100"><code>{curlExample}</code></pre>
+      <p class="text-sm">SVG ringan dan cepat. Render PNG di server memakai CPU lebih besar dan bisa melewati batas plan gratis Cloudflare; untuk PNG besar gunakan generator di atas atau library. Dengan memakai API ini Anda menyetujui <a href="/legal">Syarat Penggunaan</a>.</p>
+    </section>
+
+    <section id="traktir" class="mt-16 scroll-mt-6 rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
+      <h2 class="text-2xl font-bold text-ink">Traktir pengembang</h2>
+      <p class="mx-auto mt-2 max-w-xl text-sm text-slate-600">qristifier gratis dan open source. Kalau bermanfaat, traktir kopi lewat Trakteer atau GitHub Sponsors.</p>
+      <div class="mt-4 flex flex-wrap justify-center gap-3">
+        <a href="https://trakteer.id/suriyadi15/tip" target="_blank" rel="noopener" class="btn btn-primary">Traktir di Trakteer</a>
+        <a href="https://github.com/sponsors/suriyadi15" target="_blank" rel="noopener" class="btn btn-ghost">GitHub Sponsors</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    import { toDynamicQRIS, parseQRIS, QRISError } from 'qrisnamis'
+    import { configureDecoder, decodeQRISImage } from 'qrisnamis/image'
+    import {
+      QristifierError,
+      defineTemplate,
+      fieldsOf,
+      getTemplate,
+      renderQRISDetailed,
+      themeNames,
+      themes,
+      type RenderOptions,
+      type TemplateSpec,
+    } from 'qristifier'
+    import wasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url'
+
+    configureDecoder({ wasmUrl })
+
+    const EXAMPLE =
+      '00020101021126640012ID.DUMMY.WWW01189360000000000000010215ID12345678901230303UMI51440014ID.CO.QRIS.WWW0215ID00000000000000303UMI5204581253033605802ID5909TOKO TEST6007JAKARTA61051234562070703A016304BE67'
+    const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
+    const gen = $('gen'), consent = $<HTMLInputElement>('consent-check')
+    const staticEl = $<HTMLTextAreaElement>('static'), freeEl = $<HTMLInputElement>('free')
+    const amountEl = $<HTMLInputElement>('amount'), refEl = $<HTMLInputElement>('ref')
+    const feeType = $<HTMLSelectElement>('feeType'), feeValue = $<HTMLInputElement>('feeValue')
+    const themeEl = $<HTMLSelectElement>('theme'), qrStyleEl = $<HTMLSelectElement>('qrStyle')
+    const colorsEl = $('colors'), fieldsEl = $('fields'), previewEl = $('preview')
+    const statusEl = $('status'), errorEl = $('error'), tplDesc = $('tpl-desc')
+    const specEl = $<HTMLTextAreaElement>('spec'), specOn = $<HTMLInputElement>('spec-on'), specErr = $('spec-err')
+    const logoEl = $<HTMLInputElement>('logo'), logoClear = $<HTMLButtonElement>('logo-clear')
+    const apiUrl = $<HTMLInputElement>('api-url'), apiNote = $('api-note')
+    const buttons = ['dl-png', 'dl-svg', 'copy-payload', 'copy-link', 'copy-api'].map((id) => $<HTMLButtonElement>(id))
+
+    const COLOR_KEYS = [['primary', 'Utama'], ['accent', 'Aksen'], ['background', 'Latar'], ['text', 'Teks']] as const
+    const st = {
+      template: 'gpn',
+      colors: {} as Record<string, string>,
+      fields: {} as Record<string, string | boolean>,
+      logo: '',
+    }
+    let last: { svg: string; width: number; height: number; payload: string } | null = null
+
+    // ---------- clipboard & consent ----------
+    const flash = (b: HTMLElement, text: string) => {
+      const old = b.textContent
+      b.textContent = text
+      setTimeout(() => (b.textContent = old), 1500)
+    }
+    document.addEventListener('click', async (e) => {
+      const btn = (e.target as Element).closest<HTMLButtonElement>('[data-copy]')
+      if (!btn) return
+      try { await navigator.clipboard.writeText(btn.dataset.copy ?? '') } catch { return }
+      btn.querySelector('.copy-icon')?.classList.add('hidden')
+      btn.querySelector('.check-icon')?.classList.remove('hidden')
+      setTimeout(() => {
+        btn.querySelector('.copy-icon')?.classList.remove('hidden')
+        btn.querySelector('.check-icon')?.classList.add('hidden')
+      }, 1500)
+    })
+    const KEY = 'qristifier-consent'
+    const read = () => { try { return localStorage.getItem(KEY) === '1' } catch { return false } }
+    const write = (v: boolean) => { try { localStorage.setItem(KEY, v ? '1' : '0') } catch {} }
+    function applyConsent(on: boolean) {
+      consent.checked = on
+      gen.classList.toggle('opacity-50', !on)
+      gen.classList.toggle('pointer-events-none', !on)
+      gen.setAttribute('aria-disabled', String(!on))
+    }
+    applyConsent(read())
+    consent.addEventListener('change', () => { write(consent.checked); applyConsent(consent.checked) })
+
+    // ---------- state <-> URL hash (tanpa logo) ----------
+    const enc = (o: unknown) => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    const dec = (s: string) => JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))))
+    const snapshot = () => ({
+      p: staticEl.value.trim(), free: freeEl.checked, a: amountEl.value.trim(), r: refEl.value.trim(),
+      ft: feeType.value, fv: feeValue.value.trim(), t: st.template, th: themeEl.value, qs: qrStyleEl.value,
+      c: st.colors, f: st.fields, sj: specOn.checked ? specEl.value : '',
+    })
+
+    // ---------- template spec ----------
+    function currentSpec(): TemplateSpec {
+      if (specOn.checked) {
+        try {
+          const spec = defineTemplate(JSON.parse(specEl.value))
+          specErr.textContent = ''
+          return spec
+        } catch (e) {
+          specErr.textContent = e instanceof Error ? e.message : 'Spec tidak valid'
+        }
+      }
+      return getTemplate(st.template)
+    }
+
+    // ---------- opsi render ----------
+    function options(spec: TemplateSpec | string, withAmount = true): RenderOptions {
+      const o: RenderOptions = {
+        template: spec,
+        strict: !freeEl.checked,
+        theme: themeEl.value || undefined,
+        qrStyle: (qrStyleEl.value || undefined) as RenderOptions['qrStyle'],
+        colors: { ...st.colors },
+        logo: st.logo || undefined,
+        logoBackground: $<HTMLInputElement>('logo-nobg').checked ? 'none' : 'solid',
+        fields: Object.fromEntries(Object.entries(st.fields).filter(([, v]) => v !== '')) as Record<string, string | boolean>,
+      }
+      if (withAmount && amountEl.value.trim() && !freeEl.checked) {
+        o.amount = amountEl.value.trim()
+        if (refEl.value.trim()) o.referenceId = refEl.value.trim()
+        const t = feeType.value
+        if (t === 'prompt') o.fee = { type: 'prompt' }
+        else if (t) o.fee = { type: t as 'fixed' | 'percent', value: feeValue.value.trim() }
+      }
+      return o
+    }
+    const source = () => staticEl.value.trim()
+    const message = (e: unknown) =>
+      e instanceof QristifierError || e instanceof QRISError || e instanceof Error ? e.message : 'Terjadi kesalahan'
+
+    // ---------- UI dinamis ----------
+    function fillSelect(el: HTMLSelectElement, items: { value: string; label: string }[]) {
+      el.replaceChildren(...items.map((i) => Object.assign(document.createElement('option'), { value: i.value, textContent: i.label })))
+    }
+    fillSelect(themeEl, themeNames.map((v) => ({ value: v, label: v[0]!.toUpperCase() + v.slice(1) })))
+    fillSelect(qrStyleEl, ['square', 'dots', 'rounded'].map((v) => ({ value: v, label: v[0]!.toUpperCase() + v.slice(1) })))
+
+    function buildColors() {
+      colorsEl.replaceChildren()
+      const base = themes[themeEl.value] ?? themes.merah!
+      for (const [key, label] of COLOR_KEYS) {
+        const wrap = document.createElement('label')
+        wrap.className = 'flex flex-col gap-1'
+        const input = Object.assign(document.createElement('input'), { type: 'color', value: st.colors[key] ?? (base as Record<string, string>)[key] })
+        input.className = 'h-9 w-full cursor-pointer rounded border border-slate-300 bg-white p-0.5'
+        input.addEventListener('input', () => { st.colors[key] = input.value; update() })
+        wrap.append(label, input)
+        colorsEl.append(wrap)
+      }
+    }
+
+    function buildFields() {
+      fieldsEl.replaceChildren()
+      const spec = currentSpec()
+      for (const f of fieldsOf(spec)) {
+        if (['theme', 'qrStyle', 'logo'].includes(f.key) || (f.type !== 'text' && f.type !== 'boolean')) continue
+        const wrap = document.createElement('label')
+        wrap.className = f.type === 'boolean' ? 'flex items-center gap-2 text-sm' : 'block'
+        const input = document.createElement('input')
+        if (f.type === 'boolean') {
+          input.type = 'checkbox'
+          input.checked = typeof st.fields[f.key] === 'boolean' ? (st.fields[f.key] as boolean) : f.default !== false
+          input.addEventListener('change', () => { st.fields[f.key] = input.checked; update() })
+          wrap.append(input, f.label)
+        } else {
+          input.className = 'input'
+          input.placeholder = String(f.default ?? '')
+          input.value = String(st.fields[f.key] ?? '')
+          input.addEventListener('input', () => { st.fields[f.key] = input.value; update() })
+          const cap = document.createElement('span')
+          cap.className = 'text-xs text-slate-500'
+          cap.textContent = f.label
+          wrap.append(cap, input)
+        }
+        fieldsEl.append(wrap)
+      }
+    }
+
+    function selectTemplate(id: string, resetTheme = true) {
+      st.template = id
+      const spec = getTemplate(id)
+      if (resetTheme) { themeEl.value = spec.theme ?? 'merah'; st.colors = {} }
+      tplDesc.textContent = `${spec.name}: ${spec.description} (${spec.width}×${spec.height})`
+      document.querySelectorAll<HTMLElement>('.tpl').forEach((b) => {
+        const on = b.dataset.tpl === id
+        b.classList.toggle('border-brand', on)
+        b.classList.toggle('border-slate-200', !on)
+      })
+      buildColors()
+      buildFields()
+    }
+
+    // ---------- render ----------
+    function previewPayload() {
+      return source() || EXAMPLE
+    }
+
+    function renderThumbs() {
+      const payload = previewPayload()
+      document.querySelectorAll<HTMLElement>('.tpl').forEach((b) => {
+        const thumb = b.querySelector<HTMLElement>('.thumb')!
+        try {
+          const { svg } = renderQRISDetailed(payload, { ...options(b.dataset.tpl!, false), strict: !freeEl.checked && !!source() })
+          thumb.innerHTML = svg
+        } catch {
+          thumb.innerHTML = ''
+        }
+      })
+    }
+
+    function setActions(on: boolean) { for (const b of buttons) b.disabled = !on }
+
+    function buildApiUrl() {
+      if (!source() || specOn.checked) {
+        apiUrl.value = ''
+        apiNote.textContent = specOn.checked ? 'Template kustom dikirim lewat POST /api/render (lihat dokumentasi).' : ''
+        return
+      }
+      const p = new URLSearchParams({ qris: source(), template: st.template, format: 'png' })
+      if (freeEl.checked) p.set('strict', 'false')
+      if (amountEl.value.trim()) {
+        p.set('amount', amountEl.value.trim())
+        if (refEl.value.trim()) p.set('referenceId', refEl.value.trim())
+        if (feeType.value) { p.set('feeType', feeType.value); if (feeValue.value.trim()) p.set('feeValue', feeValue.value.trim()) }
+      }
+      if (themeEl.value !== (getTemplate(st.template).theme ?? 'merah')) p.set('theme', themeEl.value)
+      if (qrStyleEl.value !== 'square') p.set('qrStyle', qrStyleEl.value)
+      if ($<HTMLInputElement>('logo-nobg').checked) p.set('logoBackground', 'none')
+      for (const [k, v] of Object.entries(st.colors)) p.set(`color.${k}`, v)
+      for (const [k, v] of Object.entries(st.fields)) if (v !== '' && typeof v === 'string') p.set(`field.${k}`, v)
+      for (const [k, v] of Object.entries(st.fields)) if (v === false) p.set(`field.${k}`, 'false')
+      apiUrl.value = `${location.origin}/api/render?${p}`
+      apiNote.textContent = st.logo ? 'Logo tidak disertakan di URL; kirim lewat POST /api/render atau URL logo https.' : ''
+    }
+
+    function update() {
+      errorEl.textContent = ''
+      renderThumbs()
+      const spec = currentSpec()
+      try {
+        const payload = previewPayload()
+        const r = renderQRISDetailed(payload, { ...options(spec), strict: !freeEl.checked && !!source() })
+        last = r
+        previewEl.innerHTML = r.svg
+        setActions(!!source())
+      } catch (e) {
+        last = null
+        errorEl.textContent = message(e)
+        setActions(false)
+      }
+      buildApiUrl()
+      history.replaceState(null, '', source() ? `#s=${enc(snapshot())}` : location.pathname)
+    }
+
+    // ---------- input ----------
+    async function decodeFile(f: File) {
+      statusEl.textContent = 'Membaca QR…'
+      try {
+        const { payload } = await decodeQRISImage(f)
+        staticEl.value = payload
+        statusEl.textContent = 'QR berhasil dibaca.'
+        update()
+      } catch (e) {
+        const code = e instanceof QRISError ? e.code : ''
+        statusEl.textContent =
+          code === 'NOT_QRIS' ? 'QR terbaca, tetapi bukan QRIS (centang "Payload bebas" bila memang sengaja).'
+          : code === 'QR_NOT_FOUND' ? 'QR tidak terbaca. Coba gambar yang lebih jelas atau tempel teksnya.'
+          : 'Gagal membaca gambar.'
+      }
+    }
+    const fileEl = $<HTMLInputElement>('file'), drop = $('drop')
+    fileEl.addEventListener('change', () => fileEl.files?.[0] && decodeFile(fileEl.files[0]))
+    drop.addEventListener('dragover', (e) => e.preventDefault())
+    drop.addEventListener('drop', (e) => { e.preventDefault(); const f = (e as DragEvent).dataTransfer?.files?.[0]; if (f) decodeFile(f) })
+
+    function describeSource() {
+      statusEl.textContent = ''
+      const s = source()
+      if (!s || freeEl.checked) return
+      try {
+        const info = parseQRIS(s)
+        statusEl.textContent = [info.merchant.name, info.merchant.city, info.merchant.nmid && `NMID ${info.merchant.nmid}`, info.crc.valid ? 'CRC valid' : 'CRC TIDAK valid'].filter(Boolean).join(' · ')
+      } catch (e) { statusEl.textContent = message(e) }
+    }
+
+    staticEl.addEventListener('input', () => { describeSource(); update() })
+    for (const el of [freeEl, amountEl, refEl, feeValue, qrStyleEl, specEl]) el.addEventListener('input', update)
+    $('logo-nobg').addEventListener('change', update)
+    freeEl.addEventListener('change', () => { describeSource(); update() })
+    specOn.addEventListener('change', () => { buildFields(); update() })
+    feeType.addEventListener('change', () => { feeValue.disabled = !feeType.value || feeType.value === 'prompt'; update() })
+    themeEl.addEventListener('change', () => { st.colors = {}; buildColors(); update() })
+    document.querySelectorAll<HTMLElement>('.tpl').forEach((b) =>
+      b.addEventListener('click', () => { selectTemplate(b.dataset.tpl!); update() }),
+    )
+
+    // Logo: perkecil ke maks 256px agar ringan dan QR tetap terbaca.
+    logoEl.addEventListener('change', async () => {
+      const f = logoEl.files?.[0]
+      if (!f) return
+      try {
+        const url = URL.createObjectURL(f)
+        const img = await new Promise<HTMLImageElement>((res, rej) => {
+          const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url
+        })
+        const s = Math.min(1, 256 / Math.max(img.naturalWidth || 256, img.naturalHeight || 256))
+        const c = document.createElement('canvas')
+        c.width = Math.round((img.naturalWidth || 256) * s); c.height = Math.round((img.naturalHeight || 256) * s)
+        c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
+        URL.revokeObjectURL(url)
+        st.logo = c.toDataURL('image/png')
+        logoClear.style.display = ''
+        update()
+      } catch { errorEl.textContent = 'Gagal membaca logo.' }
+    })
+    logoClear.addEventListener('click', () => { st.logo = ''; logoEl.value = ''; logoClear.style.display = 'none'; update() })
+
+    $('spec-copy').addEventListener('click', () => {
+      const { render: _r, ...spec } = getTemplate(st.template) as TemplateSpec
+      specEl.value = JSON.stringify(spec, null, 2)
+      flash($('spec-copy'), 'Disalin ke editor ✓')
+    })
+
+    // ---------- ekspor ----------
+    const save = (blob: Blob, name: string) => {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click()
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+    }
+    const fileBase = () => `qris-${specOn.checked ? 'kustom' : st.template}`
+    $('dl-svg').addEventListener('click', () => last && save(new Blob([last.svg], { type: 'image/svg+xml' }), `${fileBase()}.svg`))
+    $('dl-png').addEventListener('click', async () => {
+      if (!last) return
+      const scale = Number($<HTMLSelectElement>('png-scale').value) || 2
+      const img = new Image()
+      const url = URL.createObjectURL(new Blob([last.svg], { type: 'image/svg+xml' }))
+      try {
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url })
+        const c = document.createElement('canvas')
+        c.width = last.width * scale; c.height = last.height * scale
+        const g = c.getContext('2d')!
+        g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height)
+        g.drawImage(img, 0, 0, c.width, c.height)
+        c.toBlob((b) => b && save(b, `${fileBase()}.png`))
+      } catch { errorEl.textContent = 'Gagal membuat PNG.' } finally { URL.revokeObjectURL(url) }
+    })
+    $('copy-payload').addEventListener('click', async () => { if (last) { await navigator.clipboard.writeText(last.payload); flash($('copy-payload'), 'Tersalin ✓') } })
+    $('copy-link').addEventListener('click', async () => { await navigator.clipboard.writeText(location.href); flash($('copy-link'), 'Tersalin ✓') })
+    $('copy-api').addEventListener('click', async () => { await navigator.clipboard.writeText(apiUrl.value); flash($('copy-api'), 'Tersalin ✓') })
+
+    // ---------- init (pulihkan dari hash bila ada) ----------
+    selectTemplate('gpn')
+    const m = location.hash.match(/^#s=(.+)$/)
+    if (m) {
+      try {
+        const s = dec(m[1]!)
+        staticEl.value = s.p ?? ''; freeEl.checked = !!s.free; amountEl.value = s.a ?? ''; refEl.value = s.r ?? ''
+        feeType.value = s.ft ?? ''; feeValue.value = s.fv ?? ''; feeValue.disabled = !feeType.value || feeType.value === 'prompt'
+        st.colors = s.c ?? {}; st.fields = s.f ?? {}
+        if (s.sj) { specEl.value = s.sj; specOn.checked = true; ($('adv') as HTMLDetailsElement).open = true }
+        selectTemplate(getTemplate(s.t) ? s.t : 'gpn', false)
+        themeEl.value = s.th ?? themeEl.value; qrStyleEl.value = s.qs ?? 'square'
+        buildColors(); describeSource()
+      } catch { /* hash rusak: abaikan */ }
+    }
+    update()
+  </script>
+</Base>

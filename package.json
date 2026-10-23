@@ -1,0 +1,13 @@
+{
+  "name": "qristifier-monorepo",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "test": "bun test --cwd packages/qristifier",
+    "build:lib": "bun run --cwd packages/qristifier build",
+    "build:site": "bun run build:lib && bun run --cwd apps/web build:site",
+    "dev": "bun run build:lib && bun run --cwd apps/web dev",
+    "deploy": "bun run build:lib && bun run --cwd apps/web deploy",
+    "typecheck": "bun run build:lib && bun run --cwd packages/qristifier typecheck && bun run --cwd apps/web typecheck"
+  }
+}

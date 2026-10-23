@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://qristifier.pages.dev/sitemap.xml
