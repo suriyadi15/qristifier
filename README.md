@@ -2,7 +2,10 @@
 
 [![npm version](https://img.shields.io/npm/v/qristifier?logo=npm&color=cb3837)](https://www.npmjs.com/package/qristifier)
 [![CI](https://img.shields.io/github/actions/workflow/status/suriyadi15/qristifier/ci.yml?branch=main&label=CI&logo=github)](https://github.com/suriyadi15/qristifier/actions/workflows/ci.yml)
+[![npm downloads](https://img.shields.io/npm/dm/qristifier?logo=npm&color=cb3837)](https://www.npmjs.com/package/qristifier)
+[![types](https://img.shields.io/npm/types/qristifier?logo=typescript&logoColor=white)](https://www.npmjs.com/package/qristifier)
 [![license](https://img.shields.io/github/license/suriyadi15/qristifier)](./LICENSE)
+[![stars](https://img.shields.io/github/stars/suriyadi15/qristifier?style=flat&logo=github)](https://github.com/suriyadi15/qristifier)
 [![demo](https://img.shields.io/badge/demo-qristifier.pages.dev-f38020?logo=cloudflare&logoColor=white)](https://qristifier.pages.dev)
 
 Ubah QRIS statis, dinamis, atau payload string menjadi **gambar siap pakai dan promosi** dengan berbagai template: standee gaya QRIS/GPN lengkap logo, poster, kartu meja, stiker, dan story. Library TypeScript, API gratis (Cloudflare Pages), dan generator web.
@@ -15,6 +18,14 @@ apps/web              satu proyek Cloudflare Pages: API (Hono + OpenAPI + Scalar
 ```
 
 Dibangun di atas [qrisnamis](https://github.com/suriyadi15/qrisnamis) untuk parse dan konversi QRIS statis → dinamis.
+
+## Tautan
+
+- **Situs & generator:** https://qristifier.pages.dev
+- **API Playground (Scalar):** https://qristifier.pages.dev/api/docs · [OpenAPI](https://qristifier.pages.dev/api/openapi.json)
+- **Dokumentasi library:** https://qristifier.pages.dev/docs
+- **npm:** https://www.npmjs.com/package/qristifier
+- **GitHub:** https://github.com/suriyadi15/qristifier · [Issues](https://github.com/suriyadi15/qristifier/issues)
 
 ## Pengembangan
 
@@ -61,6 +72,15 @@ Catatan: batas CPU Workers gratis ±10 ms; render PNG di server bisa melewatinya
 
 - **npm:** push tag `v*` → workflow `release.yml` (butuh secret `NPM_TOKEN`).
 - **Situs + API (Pages, https://qristifier.pages.dev):** push ke `main` → `deploy.yml` (butuh secret `CLOUDFLARE_API_TOKEN` dengan izin Cloudflare Pages: Edit, dan `CLOUDFLARE_ACCOUNT_ID`).
+
+## Proyek terkait
+
+- [**qrisnamis**](https://github.com/suriyadi15/qrisnamis) — library dan API untuk mengubah QRIS statis menjadi dinamis (dipakai qristifier).
+- [**QRIS Hook**](https://github.com/suriyadi15/qrishook) — aplikasi Android yang meneruskan notifikasi pembayaran QRIS ke webhook Anda. Pasangan yang cocok: buat gambar QRIS dinamis dengan qristifier, konfirmasi pembayaran dengan QRIS Hook. [Website](https://qrishook.pages.dev/)
+
+## Kontribusi
+
+Issue dan pull request disambut di [GitHub](https://github.com/suriyadi15/qristifier). Jalankan `bun run test` dan `bun run typecheck` sebelum mengirim PR.
 
 ## Traktir
 

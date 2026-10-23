@@ -146,6 +146,12 @@ Teks mendukung `maxWidth` + `maxLines`: teks dibungkus lalu diperkecil otomatis 
 
 Generator web, API HTTP gratis (`/api/render`, `/api/templates`), dan playground Scalar tersedia di [qristifier.pages.dev](https://qristifier.pages.dev).
 
+## Tautan
+
+- [Situs & generator](https://qristifier.pages.dev) · [API Playground](https://qristifier.pages.dev/api/docs)
+- [GitHub](https://github.com/suriyadi15/qristifier) · [Issues](https://github.com/suriyadi15/qristifier/issues) · [npm](https://www.npmjs.com/package/qristifier)
+- Proyek terkait: [qrisnamis](https://github.com/suriyadi15/qrisnamis), [QRIS Hook](https://github.com/suriyadi15/qrishook)
+
 ## Lisensi
 
 MIT. Font Inter © The Inter Project Authors (SIL OFL 1.1). Logo QRIS & GPN: merek milik pemiliknya. Baca juga [DISCLAIMER.md](./DISCLAIMER.md).
